@@ -1,0 +1,182 @@
+{
+  "metadata": {
+    "total_cases": 3,
+    "systems": [
+      "single_agent",
+      "multi_agent"
+    ],
+    "description": "Comparison of single-agent baseline vs multi-agent debate ensemble"
+  },
+  "cases": [
+    {
+      "case_id": 0,
+      "claim": "Less than 14,550 people have died of COVID-19 as of March 22 , 2020 .",
+      "truth": "As of 22 March , more than 334,000 cases of COVID-19 have been reported in over 190 countries and territories , resulting in more than 14,500 deaths and 97,000 recoveries .",
+      "single_agent": {
+        "verdict": "faithful",
+        "confidence": 95.0,
+        "reasoning": "The claim states that less than 14,550 people have died of COVID-19 as of March 22, 2020, which aligns with the original fact stating more than 14,500 deaths. Since 14,500 is less than 14,550, the claim is an accurate representation of the data.",
+        "mutation_types": [],
+        "process_time": "~5s",
+        "llm_calls": 1
+      },
+      "multi_agent": {
+        "verdict": "ambiguous",
+        "confidence": 80.0,
+        "reasoning": "The external claim introduces an implicit upper bound on COVID-19 deaths not explicitly present in the original fact, which can be reasonably interpreted either as a distortion or as journalistic rounding. Given the ambiguity in numeric phrasing and the legitimate scope narrowing, the claim’s faithfulness is uncertain. Therefore, the verdict is ambiguous with moderate to high confidence.",
+        "mutation_types": [
+          "numerical distortion",
+          "missing context"
+        ],
+        "process_time": "~30s",
+        "llm_calls": 10,
+        "agents": {
+          "prosecutor": {
+            "arguments": [
+              "The Defense argues the upper bound ('less than 14,550') is a reasonable rounding to communicate a narrow margin. However, the original fact explicitly conveys a lower bound ('more than 14,500'), which implies the death toll is at least 14,501 but leaves the upper limit open. Introducing an upper bound without explicit data creates a numerical range that is not supported by the original fact, subtly narrowing the interpretation and potentially misleading readers to believe the death toll is capped near 14,550. This is more than minor rounding; it alters the quantitative framing and limits the fact's openness, warranting a medium severity classification.",
+              "The Defense correctly notes that focusing on deaths is a valid journalistic choice and does not deny the existence of other data points. While the omission of total cases and recoveries reduces epidemiological context, it does not distort or contradict the death count claim. Therefore, this missing context accusation is acknowledged as a minor issue, reflecting a scope choice rather than a distortion."
+            ],
+            "confidence": 85.0
+          },
+          "defense": {
+            "arguments": [
+              "The external claim's use of 'less than 14,550' functions as a journalistic rounding and an implicit approximate upper bound rather than a strict cap, consistent with common reporting practices during dynamic data situations like a pandemic. While the original fact states a lower bound ('more than 14,500') without specifying an upper limit, the external claim does not definitively assert an exact maximum but signals a close range within a margin of about 50 deaths, which is reasonable given fluctuating data.",
+              "We acknowledge the Prosecutor's characterization of the omission of total cases and recoveries as reducing epidemiological context, but maintain that this is a scope alignment consistent with reasonable journalistic emphasis on mortality. It does not distort or contradict the death count and thus remains a faithful representation of the original fact's mortality data."
+            ],
+            "confidence": 85.0
+          },
+          "epistemologist": {
+            "key_uncertainty": "The main limiting factor is the interpretive ambiguity inherent in numeric phrasing and journalistic rounding conventions, which permits multiple reasonable understandings of whether the external claim distorts or faithfully paraphrases the original fact.",
+            "confidence": 90.0
+          }
+        }
+      },
+      "comparison": {
+        "verdict_match": false,
+        "confidence_diff": 15.0,
+        "mutation_types_match": false
+      }
+    },
+    {
+      "case_id": 1,
+      "claim": "License to Kill was the first film in the Bond franchise to get a PG-13 rating by the Motion Picture Association of America .",
+      "truth": "The film earned over $ 156 million worldwide , and enjoyed a generally positive critical reception , with ample praise for the stunts , but attracted some criticism of Dalton 's dark and violent interpretation of Bond and the fact that the film was significantly darker and more violent than its predecessors , resulting in the film 's PG-13 rating by the Motion Picture Association of America ( the first for the franchise ) .",
+      "single_agent": {
+        "verdict": "faithful",
+        "confidence": 95.0,
+        "reasoning": "The original fact explicitly states that the film received a PG-13 rating from the Motion Picture Association of America, which was the first for the franchise. The claim correctly identifies that License to Kill was the first Bond film to get a PG-13 rating.",
+        "mutation_types": [],
+        "process_time": "~5s",
+        "llm_calls": 1
+      },
+      "multi_agent": {
+        "verdict": "ambiguous",
+        "confidence": 85.0,
+        "reasoning": "The claim that License to Kill was the first Bond film to receive a PG-13 rating by the MPAA is factually accurate and faithful to the original fact. While it omits important causal context about the film's darker content leading to this rating, such omission reflects a typical summarization choice rather than a mutation. Given interpretive uncertainty about the necessity of explanatory detail in milestone claims, the verdict is ambiguous with moderate-high confidence.",
+        "mutation_types": [
+          "missing_context"
+        ],
+        "process_time": "~30s",
+        "llm_calls": 10,
+        "agents": {
+          "prosecutor": {
+            "arguments": [
+              "The Defense correctly notes that the external claim is factually accurate as a standalone milestone statement. However, the omission of the cause—the film's darker and more violent content leading to this rating—represents a loss of important explanatory context. While the claim is not false, it is incomplete and risks obscuring why this milestone was significant. This subtle but meaningful contextual detail is relevant especially for audiences seeking to understand the rating's impact and the film's reception."
+            ],
+            "confidence": 85.0
+          },
+          "defense": {
+            "arguments": [
+              "While the omission does remove some explanatory context about why the film received the PG-13 rating, the external claim remains a faithful and factually accurate milestone statement. The absence of causal details does not amount to a distortion or inaccuracy, but rather reflects a typical level of summarization appropriate for many informational contexts."
+            ],
+            "confidence": 90.0
+          },
+          "epistemologist": {
+            "key_uncertainty": "Whether omission of causal explanatory context in a milestone factual claim constitutes a mutation or an acceptable summarization depends on interpretive standards about completeness versus brevity.",
+            "confidence": 90.0
+          }
+        }
+      },
+      "comparison": {
+        "verdict_match": false,
+        "confidence_diff": 10.0,
+        "mutation_types_match": false
+      }
+    },
+    {
+      "case_id": 2,
+      "claim": "Badmotorfinger was certified double platinum by the RIAA after March 1996 , as more than 1.8 million copies were sold ; however , less than 1.6 million copies had been sold before November 2010 .",
+      "truth": "136 Badmotorfinger was certified double platinum by the RIAA in April 1996 , signifying two million shipped copies ; however , only 1.5 million copies had been sold by October 2010.In a contemporary review for Spin , Lauren Spencer hailed Badmotorfinger as a `` garden of sound '' that drew on older hard rock influences without sounding `` derivative '' .",
+      "single_agent": {
+        "verdict": "mutated",
+        "confidence": 90.0,
+        "reasoning": "The claim incorrectly states that more than 1.8 million copies were sold by the time of certification, while the fact only confirms certification in April 1996 with two million shipped copies but states only 1.5 million sold by October 2010. The claim also changes the certification date range to 'after March 1996' instead of specifically April 1996, and the sales figures are inaccurately presented.",
+        "mutation_types": [
+          "date distortion",
+          "sales figure exaggeration",
+          "misrepresentation of certification timing"
+        ],
+        "process_time": "~5s",
+        "llm_calls": 1
+      },
+      "multi_agent": {
+        "verdict": "mutated",
+        "confidence": 90.0,
+        "reasoning": "The external claim mostly aligns with the original fact in terms of certification timing and approximate sales figures, with minor acceptable temporal and rounding variations. However, it significantly distorts the sales figure by stating 'more than 1.8 million copies sold,' which is unsupported and conflates shipments with sales, constituting a material mutation of the original fact.",
+        "mutation_types": [
+          "TEMPORAL MISMATCH",
+          "TEMPORAL MISMATCH / NUMERICAL DISTORTION",
+          "NUMERICAL DISTORTION"
+        ],
+        "process_time": "~30s",
+        "llm_calls": 10,
+        "agents": {
+          "prosecutor": {
+            "arguments": [
+              "The Defense's argument that 'after March 1996' is a legitimate journalistic convention capturing the correct temporal window is acknowledged. While less precise, it does not contradict the original fact. Therefore, this is a minor temporal mismatch rather than a substantive distortion.",
+              "The Defense correctly notes this is a minor variance consistent with rounding and temporal interpretation conventions. The claim's phrasing effectively covers the original timeframe and the difference between 1.5 million and less than 1.6 million is negligible for typical journalistic purposes.",
+              "The Defense concedes the original fact does not support the inflated sales figure of more than 1.8 million copies. This remains a significant numerical distortion, as the increase from 1.5 million to over 1.8 million is neither a rounding issue nor supported by shipment versus sales distinctions provided in the original data. This materially misrepresents the sales performance."
+            ],
+            "confidence": 95.0
+          },
+          "defense": {
+            "arguments": [
+              "We agree with the Prosecutor that stating 'after March 1996' is indeed a minor temporal mismatch rather than a substantive distortion, as it correctly situates the certification date in the immediate period following March 1996.",
+              "We accept the Prosecutor’s point that the difference between 'by October 2010' and 'before November 2010' and the rounding from 1.5 million to 'less than 1.6 million' copies sold is negligible and within typical journalistic conventions.",
+              "We concede the Prosecutor’s valid criticism that the claim's assertion of 'more than 1.8 million copies sold' is not supported by the original fact’s stated figure of 1.5 million copies sold by October 2010 and thus constitutes a significant numerical distortion."
+            ],
+            "confidence": 85.0
+          },
+          "epistemologist": {
+            "key_uncertainty": "Whether the 'more than 1.8 million copies sold' claim can be legitimately supported by shipment data or other sources beyond explicit sales figures, which is not resolved by the current evidence",
+            "confidence": 95.0
+          }
+        }
+      },
+      "comparison": {
+        "verdict_match": true,
+        "confidence_diff": 0.0,
+        "mutation_types_match": false
+      }
+    }
+  ],
+  "statistics": {
+    "verdict_agreement_rate": 33.3,
+    "average_confidence": {
+      "single_agent": 93.3,
+      "multi_agent": 85.0
+    },
+    "verdict_distribution": {
+      "single_agent": {
+        "faithful": 2,
+        "mutated": 1,
+        "ambiguous": 0
+      },
+      "multi_agent": {
+        "faithful": 0,
+        "mutated": 1,
+        "ambiguous": 2
+      }
+    }
+  }
+}
