@@ -53,6 +53,13 @@ class DebateResult:
     verdict_reasoning: str
     confidence: float
     debate_transcript: list[dict]
+    # All responses across rounds
+    all_prosecutor_responses: list[dict] = None
+    all_defense_responses: list[dict] = None
+    all_epistemologist_responses: list[dict] = None
+    # Forced binary verdict tracking
+    initial_verdict: Verdict = None
+    forced_binary_used: bool = False
 
 
 # =============================================================================
@@ -299,14 +306,64 @@ EPISTEMOLOGIST'S ANALYSIS:
 Deliberate and deliver your final verdict. Weigh all arguments and provide transparent reasoning."""
 
         return self._call_agent(JURY_FOREMAN_SYSTEM, prompt, "Jury Foreman")
+    
+    def run_forced_binary_verdict(self, claim: str, truth: str,
+                                   prosecution_case: dict, defense_case: dict,
+                                   epistemologist_analysis: dict,
+                                   initial_verdict_response: dict) -> dict:
+        """Force jury to make a binary decision (faithful or mutated) when initial verdict was ambiguous."""
+        prompt = f"""FORCED BINARY DECISION REQUIRED:
 
-    def run_full_debate(self, claim: str, truth: str, num_rounds: int = None) -> DebateResult:
+ORIGINAL FACT (Source of Truth):
+"{truth}"
+
+EXTERNAL CLAIM (Under Investigation):
+"{claim}"
+
+=== PREVIOUS VERDICT ===
+Your initial verdict was: AMBIGUOUS
+Reasoning: {initial_verdict_response.get('summary', '')}
+Confidence: {initial_verdict_response.get('confidence', 0):.0%}
+
+=== DEBATE TRANSCRIPT ===
+
+PROSECUTION'S CASE:
+{json.dumps(prosecution_case, indent=2)}
+
+DEFENSE'S CASE:
+{json.dumps(defense_case, indent=2)}
+
+EPISTEMOLOGIST'S ANALYSIS:
+{json.dumps(epistemologist_analysis, indent=2)}
+
+=== INSTRUCTION ===
+
+While you initially found this case ambiguous, you must now make a BINARY decision:
+- FAITHFUL: The claim faithfully represents the original fact (despite any minor issues)
+- MUTATED: The claim distorts or misrepresents the original fact (despite any accurate elements)
+
+You CANNOT choose "ambiguous" this time. You must decide which side the claim leans toward.
+
+Consider:
+1. If forced to choose, does the claim preserve the core truth or distort it?
+2. Would a reasonable reader be misled or correctly informed?
+3. Do the faithful elements outweigh the mutations, or vice versa?
+
+Provide your forced binary verdict with clear reasoning for why you chose that side.
+
+IMPORTANT: Your verdict MUST be either "faithful" or "mutated" - NOT "ambiguous"."""
+
+        return self._call_agent(JURY_FOREMAN_SYSTEM, prompt, "Jury Foreman (Forced Binary)")
+
+    def run_full_debate(self, claim: str, truth: str, num_rounds: int = None, 
+                        force_binary_if_ambiguous: bool = False) -> DebateResult:
         """Execute the complete debate protocol with multi-round exchanges.
         
         Args:
             claim: External claim to verify
             truth: Source of truth
             num_rounds: Number of debate rounds (random 2-4 if not specified)
+            force_binary_if_ambiguous: If True, force a binary verdict when initial verdict is ambiguous
         """
         import random
         
@@ -314,7 +371,12 @@ Deliberate and deliver your final verdict. Weigh all arguments and provide trans
         
         # Random number of debate rounds (2-4) if not specified
         if num_rounds is None:
-            num_rounds = random.randint(2, 4)
+            num_rounds = 3
+        
+        # Track all responses across rounds
+        all_prosecutor_responses = []
+        all_defense_responses = []
+        all_epistemologist_responses = []
 
         print(f"\n{'='*60}")
         print("TRIBUNAL COMMENCING")
@@ -326,12 +388,15 @@ Deliberate and deliver your final verdict. Weigh all arguments and provide trans
         # Round 1: Initial positions
         print(f"[Round 1] Prosecutor presenting initial accusations...")
         prosecution = self.run_prosecution(claim, truth)
+        all_prosecutor_responses.append(prosecution)
 
         print(f"[Round 1] Defense presenting initial rebuttals...")
         defense = self.run_defense(claim, truth, prosecution)
+        all_defense_responses.append(defense)
 
         print(f"[Round 1] Epistemologist analyzing uncertainty...")
         epistemology = self.run_epistemologist(claim, truth, prosecution, defense)
+        all_epistemologist_responses.append(epistemology)
 
         # Additional debate rounds (agents respond to each other)
         for round_num in range(2, num_rounds + 1):
@@ -340,14 +405,17 @@ Deliberate and deliver your final verdict. Weigh all arguments and provide trans
             # Prosecutor responds to defense
             print(f"[Round {round_num}] Prosecutor counter-response...")
             prosecution = self._prosecutor_counter_response(claim, truth, prosecution, defense, epistemology)
+            all_prosecutor_responses.append(prosecution)
             
             # Defense responds to prosecutor
             print(f"[Round {round_num}] Defense counter-response...")
             defense = self._defense_counter_response(claim, truth, prosecution, defense, epistemology)
+            all_defense_responses.append(defense)
             
             # Epistemologist updates analysis
             print(f"[Round {round_num}] Epistemologist updating analysis...")
             epistemology = self.run_epistemologist(claim, truth, prosecution, defense)
+            all_epistemologist_responses.append(epistemology)
 
         # Final Round: Jury Foreman delivers verdict
         print(f"\n[Final Round] Jury Foreman deliberating...")
@@ -361,9 +429,40 @@ Deliberate and deliver your final verdict. Weigh all arguments and provide trans
             verdict = Verdict.MUTATED
         else:
             verdict = Verdict.AMBIGUOUS
+        
+        # Store initial verdict info
+        initial_verdict = verdict
+        initial_verdict_response = verdict_response
+        forced_binary_used = False
+
+        # Force binary decision if requested and verdict is ambiguous
+        if force_binary_if_ambiguous and verdict == Verdict.AMBIGUOUS:
+            print(f"\n{'='*60}")
+            print("INITIAL VERDICT: AMBIGUOUS")
+            print(f"{'='*60}")
+            print("\n⚖️  FORCING BINARY DECISION...")
+            
+            verdict_response = self.run_forced_binary_verdict(
+                claim, truth, prosecution, defense, epistemology, initial_verdict_response
+            )
+            
+            # Parse forced verdict
+            verdict_str = verdict_response.get("verdict", "ambiguous").lower()
+            if verdict_str == "faithful":
+                verdict = Verdict.FAITHFUL
+            elif verdict_str == "mutated":
+                verdict = Verdict.MUTATED
+            else:
+                # If still ambiguous despite forcing, keep it
+                verdict = Verdict.AMBIGUOUS
+            
+            forced_binary_used = True
 
         print(f"\n{'='*60}")
-        print(f"VERDICT: {verdict.value.upper()}")
+        if forced_binary_used:
+            print(f"FORCED BINARY VERDICT: {verdict.value.upper()}")
+        else:
+            print(f"VERDICT: {verdict.value.upper()}")
         print(f"CONFIDENCE: {verdict_response.get('confidence', 0):.0%}")
         print(f"{'='*60}")
         print(f"\nSUMMARY: {verdict_response.get('summary', 'No summary provided')}")
@@ -393,7 +492,12 @@ Deliberate and deliver your final verdict. Weigh all arguments and provide trans
             final_verdict=verdict,
             verdict_reasoning=verdict_response.get("summary", ""),
             confidence=verdict_response.get("confidence", 0),
-            debate_transcript=self.debate_history
+            debate_transcript=self.debate_history,
+            all_prosecutor_responses=all_prosecutor_responses,
+            all_defense_responses=all_defense_responses,
+            all_epistemologist_responses=all_epistemologist_responses,
+            initial_verdict=initial_verdict,
+            forced_binary_used=forced_binary_used
         )
     
     def _prosecutor_counter_response(self, claim: str, truth: str, 

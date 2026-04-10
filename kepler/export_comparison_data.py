@@ -47,8 +47,8 @@ def export_for_visualization(num_cases: int = 5):
     comparison_data = {
         "metadata": {
             "total_cases": len(data),
-            "systems": ["single_agent", "multi_agent"],
-            "description": "Comparison of single-agent baseline vs multi-agent debate ensemble"
+            "systems": ["single_agent", "multi_agent_standard", "multi_agent_forced"],
+            "description": "Three-way comparison: Single-agent vs Multi-agent (allows ambiguous) vs Multi-agent (forced binary)"
         },
         "cases": []
     }
@@ -62,9 +62,13 @@ def export_for_visualization(num_cases: int = 5):
         print("  Running single-agent...")
         sa_result = single_agent.verify_claim(case['claim'], case['truth'])
         
-        # Run multi-agent
-        print("  Running multi-agent debate...")
-        ma_result = multi_agent.run_full_debate(case['claim'], case['truth'])
+        # Run multi-agent (standard - allows ambiguous)
+        print("  Running multi-agent debate (standard)...")
+        ma_result_standard = multi_agent.run_full_debate(case['claim'], case['truth'])
+        
+        # Run multi-agent (forced binary - no ambiguous allowed)
+        print("  Running multi-agent debate (forced binary)...")
+        ma_result_forced = multi_agent.run_full_debate(case['claim'], case['truth'], force_binary_if_ambiguous=True)
         
         # Format for visualization
         case_data = {
@@ -79,51 +83,90 @@ def export_for_visualization(num_cases: int = 5):
                 "process_time": "~5s",
                 "llm_calls": 1
             },
-            "multi_agent": {
-                "verdict": ma_result.final_verdict.value,
-                "confidence": round(ma_result.confidence * 100, 1),
-                "reasoning": ma_result.verdict_reasoning,
-                "mutation_types": ma_result.prosecutor_response.mutation_types,
+            "multi_agent_standard": {
+                "verdict": ma_result_standard.final_verdict.value,
+                "confidence": round(ma_result_standard.confidence * 100, 1),
+                "reasoning": ma_result_standard.verdict_reasoning,
+                "mutation_types": ma_result_standard.prosecutor_response.mutation_types,
                 "process_time": "~30s",
-                "llm_calls": len(ma_result.debate_transcript),
+                "llm_calls": len(ma_result_standard.debate_transcript),
                 "agents": {
                     "prosecutor": {
-                        "arguments": ma_result.prosecutor_response.arguments,
-                        "confidence": round(ma_result.prosecutor_response.confidence * 100, 1)
+                        "all_rounds": [
+                            {
+                                "round": i + 1,
+                                "arguments": [acc.get("explanation", "") for acc in resp.get("accusations", [])],
+                                "confidence": round(resp.get("confidence", 0) * 100, 1)
+                            }
+                            for i, resp in enumerate(ma_result_standard.all_prosecutor_responses or [])
+                        ],
+                        "final_arguments": ma_result_standard.prosecutor_response.arguments,
+                        "final_confidence": round(ma_result_standard.prosecutor_response.confidence * 100, 1)
                     },
                     "defense": {
-                        "arguments": ma_result.defense_response.arguments,
-                        "confidence": round(ma_result.defense_response.confidence * 100, 1)
+                        "all_rounds": [
+                            {
+                                "round": i + 1,
+                                "arguments": [reb.get("counter_argument", "") for reb in resp.get("rebuttals", [])],
+                                "confidence": round(resp.get("confidence", 0) * 100, 1)
+                            }
+                            for i, resp in enumerate(ma_result_standard.all_defense_responses or [])
+                        ],
+                        "final_arguments": ma_result_standard.defense_response.arguments,
+                        "final_confidence": round(ma_result_standard.defense_response.confidence * 100, 1)
                     },
                     "epistemologist": {
-                        "key_uncertainty": ma_result.epistemologist_response.arguments[0] if ma_result.epistemologist_response.arguments else "",
-                        "confidence": round(ma_result.epistemologist_response.confidence * 100, 1)
+                        "all_rounds": [
+                            {
+                                "round": i + 1,
+                                "key_uncertainty": resp.get("key_uncertainty", ""),
+                                "verifiable_facts": resp.get("verifiable_facts", []),
+                                "confidence": round(resp.get("recommended_confidence_range", [0, 0])[-1] * 100, 1)
+                            }
+                            for i, resp in enumerate(ma_result_standard.all_epistemologist_responses or [])
+                        ],
+                        "final_uncertainty": ma_result_standard.epistemologist_response.arguments[0] if ma_result_standard.epistemologist_response.arguments else "",
+                        "final_confidence": round(ma_result_standard.epistemologist_response.confidence * 100, 1)
                     }
                 }
             },
+            "multi_agent_forced": {
+                "verdict": ma_result_forced.final_verdict.value,
+                "confidence": round(ma_result_forced.confidence * 100, 1),
+                "reasoning": ma_result_forced.verdict_reasoning,
+                "mutation_types": ma_result_forced.prosecutor_response.mutation_types,
+                "process_time": "~30s",
+                "llm_calls": len(ma_result_forced.debate_transcript),
+                "forced_binary_used": ma_result_forced.forced_binary_used,
+                "initial_verdict": ma_result_forced.initial_verdict.value if ma_result_forced.initial_verdict else None,
+            },
             "comparison": {
-                "verdict_match": sa_result.verdict.value == ma_result.final_verdict.value,
-                "confidence_diff": abs(round((sa_result.confidence - ma_result.confidence) * 100, 1)),
-                "mutation_types_match": set(sa_result.mutation_types) == set(ma_result.prosecutor_response.mutation_types or [])
+                "sa_vs_ma_standard": sa_result.verdict.value == ma_result_standard.final_verdict.value,
+                "sa_vs_ma_forced": sa_result.verdict.value == ma_result_forced.final_verdict.value,
+                "ma_standard_vs_forced": ma_result_standard.final_verdict.value == ma_result_forced.final_verdict.value,
+                "forced_changed_verdict": ma_result_forced.forced_binary_used and (ma_result_forced.initial_verdict.value != ma_result_forced.final_verdict.value)
             }
         }
         
         comparison_data["cases"].append(case_data)
         
-        print(f"  ✓ Single-Agent: {sa_result.verdict.value.upper()} ({sa_result.confidence:.0%})")
-        print(f"  ✓ Multi-Agent:  {ma_result.final_verdict.value.upper()} ({ma_result.confidence:.0%})")
+        print(f"  ✓ Single-Agent:          {sa_result.verdict.value.upper()} ({sa_result.confidence:.0%})")
+        print(f"  ✓ Multi-Agent (Standard): {ma_result_standard.final_verdict.value.upper()} ({ma_result_standard.confidence:.0%})")
+        print(f"  ✓ Multi-Agent (Forced):   {ma_result_forced.final_verdict.value.upper()} ({ma_result_forced.confidence:.0%})")
+        if ma_result_forced.forced_binary_used:
+            print(f"    → Forced from: {ma_result_forced.initial_verdict.value.upper()}")
     
     # Calculate overall statistics
     total_cases = len(comparison_data["cases"])
-    verdict_matches = sum(1 for c in comparison_data["cases"] if c["comparison"]["verdict_match"])
     avg_sa_conf = sum(c["single_agent"]["confidence"] for c in comparison_data["cases"]) / total_cases
-    avg_ma_conf = sum(c["multi_agent"]["confidence"] for c in comparison_data["cases"]) / total_cases
+    avg_ma_standard_conf = sum(c["multi_agent_standard"]["confidence"] for c in comparison_data["cases"]) / total_cases
+    avg_ma_forced_conf = sum(c["multi_agent_forced"]["confidence"] for c in comparison_data["cases"]) / total_cases
     
     comparison_data["statistics"] = {
-        "verdict_agreement_rate": round(verdict_matches / total_cases * 100, 1),
         "average_confidence": {
             "single_agent": round(avg_sa_conf, 1),
-            "multi_agent": round(avg_ma_conf, 1)
+            "multi_agent_standard": round(avg_ma_standard_conf, 1),
+            "multi_agent_forced": round(avg_ma_forced_conf, 1)
         },
         "verdict_distribution": {
             "single_agent": {
@@ -131,11 +174,20 @@ def export_for_visualization(num_cases: int = 5):
                 "mutated": sum(1 for c in comparison_data["cases"] if c["single_agent"]["verdict"] == "mutated"),
                 "ambiguous": sum(1 for c in comparison_data["cases"] if c["single_agent"]["verdict"] == "ambiguous")
             },
-            "multi_agent": {
-                "faithful": sum(1 for c in comparison_data["cases"] if c["multi_agent"]["verdict"] == "faithful"),
-                "mutated": sum(1 for c in comparison_data["cases"] if c["multi_agent"]["verdict"] == "mutated"),
-                "ambiguous": sum(1 for c in comparison_data["cases"] if c["multi_agent"]["verdict"] == "ambiguous")
+            "multi_agent_standard": {
+                "faithful": sum(1 for c in comparison_data["cases"] if c["multi_agent_standard"]["verdict"] == "faithful"),
+                "mutated": sum(1 for c in comparison_data["cases"] if c["multi_agent_standard"]["verdict"] == "mutated"),
+                "ambiguous": sum(1 for c in comparison_data["cases"] if c["multi_agent_standard"]["verdict"] == "ambiguous")
+            },
+            "multi_agent_forced": {
+                "faithful": sum(1 for c in comparison_data["cases"] if c["multi_agent_forced"]["verdict"] == "faithful"),
+                "mutated": sum(1 for c in comparison_data["cases"] if c["multi_agent_forced"]["verdict"] == "mutated"),
+                "ambiguous": sum(1 for c in comparison_data["cases"] if c["multi_agent_forced"]["verdict"] == "ambiguous")
             }
+        },
+        "forced_binary_stats": {
+            "total_forced": sum(1 for c in comparison_data["cases"] if c["multi_agent_forced"]["forced_binary_used"]),
+            "verdict_changed_by_forcing": sum(1 for c in comparison_data["cases"] if c["comparison"]["forced_changed_verdict"])
         }
     }
     
@@ -149,9 +201,13 @@ def export_for_visualization(num_cases: int = 5):
     print(f"{'='*70}")
     print(f"\nStatistics:")
     print(f"  Total cases: {total_cases}")
-    print(f"  Verdict agreement: {comparison_data['statistics']['verdict_agreement_rate']}%")
-    print(f"  Avg confidence (SA): {avg_sa_conf:.1f}%")
-    print(f"  Avg confidence (MA): {avg_ma_conf:.1f}%")
+    print(f"  Avg confidence (Single-Agent):     {avg_sa_conf:.1f}%")
+    print(f"  Avg confidence (MA Standard):      {avg_ma_standard_conf:.1f}%")
+    print(f"  Avg confidence (MA Forced Binary): {avg_ma_forced_conf:.1f}%")
+    print(f"\nForced Binary Stats:")
+    print(f"  Cases forced to binary: {comparison_data['statistics']['forced_binary_stats']['total_forced']}/{total_cases}")
+    print(f"  Verdicts changed by forcing: {comparison_data['statistics']['forced_binary_stats']['verdict_changed_by_forcing']}")
+    
     
     return output_file
 
@@ -159,7 +215,7 @@ def export_for_visualization(num_cases: int = 5):
 if __name__ == "__main__":
     import sys
     
-    num_cases = int(sys.argv[1]) if len(sys.argv) > 1 else 3
+    num_cases = int(sys.argv[1]) if len(sys.argv) > 1 else 5
     print(f"🎯 Generating comparison data for {num_cases} cases\n")
     
     export_for_visualization(num_cases)
